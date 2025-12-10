@@ -1,197 +1,267 @@
-// Swiggy Content Script - Find similar dishes
-(function() {
+// Swiggy Content Script - Side-by-Side Zomato Comparison
+(function () {
     'use strict';
 
-    let comparisonPanel = null;
+    let sidebar = null;
     let selectedDish = null;
+    let restaurantName = '';
+    let zomatoUrl = '';
 
-    // Create comparison panel UI
-    function createComparisonPanel() {
-        if (comparisonPanel) return;
+    // --- SIDEBAR UI ---
 
-        comparisonPanel = document.createElement('div');
-        comparisonPanel.id = 'food-compare-panel';
-        comparisonPanel.innerHTML = `
-            <div class="compare-header">
-                <h3>🍽️ Similar Dishes</h3>
-                <button class="close-btn" id="closeCompare">×</button>
+    function createSidebar() {
+        if (sidebar) return;
+
+        sidebar = document.createElement('div');
+        sidebar.id = 'swiggy-zomato-sidebar';
+        sidebar.innerHTML = `
+            <div class="sidebar-header">
+                <h3>Price Compare</h3>
+                <button id="minimizeSidebar">_</button>
             </div>
-            <div class="compare-content" id="compareContent">
-                <p class="loading">Finding similar dishes...</p>
-            </div>
-        `;
-        document.body.appendChild(comparisonPanel);
-
-        document.getElementById('closeCompare').addEventListener('click', () => {
-            comparisonPanel.style.display = 'none';
-        });
-    }
-
-    // Extract dish information
-    function extractDishInfo(element) {
-        try {
-            // Swiggy dish card selectors
-            const titleElement = element.querySelector('[class*="RestaurantNameAddress"], h3, [class*="name"]');
-            const priceElement = element.querySelector('[class*="price"], [class*="Price"], .rupee');
-            const ratingElement = element.querySelector('[class*="rating"], [class*="Rating"]');
-            const imageElement = element.querySelector('img');
-            const descriptionElement = element.querySelector('[class*="description"], [class*="Description"], p');
-
-            const title = titleElement?.textContent?.trim() || '';
-            const priceText = priceElement?.textContent?.trim() || '';
-            const price = parsePrice(priceText);
-            const rating = parseRating(ratingElement?.textContent?.trim() || '');
-            const image = imageElement?.src || imageElement?.getAttribute('data-src') || '';
-            const description = descriptionElement?.textContent?.trim() || '';
-            const link = element.closest('a')?.href || element.querySelector('a')?.href || '';
-
-            return {
-                title,
-                price,
-                rating,
-                image,
-                description,
-                link,
-                element
-            };
-        } catch (error) {
-            console.error('Error extracting dish info:', error);
-            return null;
-        }
-    }
-
-    function parsePrice(text) {
-        const match = text.match(/[\d,]+/);
-        return match ? parseFloat(match[0].replace(/,/g, '')) : null;
-    }
-
-    function parseRating(text) {
-        const match = text.match(/(\d+\.?\d*)/);
-        return match ? parseFloat(match[0]) : null;
-    }
-
-    // Find similar dishes based on keywords
-    function findSimilarDishes(selectedDish) {
-        const keywords = extractKeywords(selectedDish.title);
-        const allDishes = document.querySelectorAll('[class*="RestaurantCard"], [class*="dishCard"], [class*="MenuItem"]');
-        
-        const similarDishes = [];
-        
-        allDishes.forEach(dishElement => {
-            if (dishElement === selectedDish.element) return;
             
-            const dishInfo = extractDishInfo(dishElement);
-            if (!dishInfo || !dishInfo.title) return;
-
-            const similarity = calculateSimilarity(keywords, dishInfo.title);
-            
-            if (similarity > 0.3) { // 30% similarity threshold
-                similarDishes.push({
-                    ...dishInfo,
-                    similarity
-                });
-            }
-        });
-
-        // Sort by similarity and price
-        similarDishes.sort((a, b) => {
-            if (Math.abs(a.similarity - b.similarity) > 0.1) {
-                return b.similarity - a.similarity;
-            }
-            return (a.price || Infinity) - (b.price || Infinity);
-        });
-
-        return similarDishes.slice(0, 5); // Top 5 similar dishes
-    }
-
-    function extractKeywords(title) {
-        // Common food keywords to ignore
-        const stopWords = ['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by'];
-        return title.toLowerCase()
-            .split(/\s+/)
-            .filter(word => word.length > 2 && !stopWords.includes(word));
-    }
-
-    function calculateSimilarity(keywords1, title2) {
-        const keywords2 = extractKeywords(title2);
-        const intersection = keywords1.filter(k => keywords2.includes(k));
-        const union = [...new Set([...keywords1, ...keywords2])];
-        return union.length > 0 ? intersection.length / union.length : 0;
-    }
-
-    // Display similar dishes
-    function displaySimilarDishes(selectedDish, similarDishes) {
-        const content = document.getElementById('compareContent');
-        
-        if (similarDishes.length === 0) {
-            content.innerHTML = '<p class="no-results">No similar dishes found. Try selecting a different dish.</p>';
-            return;
-        }
-
-        content.innerHTML = `
-            <div class="selected-dish">
-                <h4>Selected: ${selectedDish.title}</h4>
-                <div class="dish-info">
-                    ${selectedDish.price ? `<span class="price">₹${selectedDish.price}</span>` : ''}
-                    ${selectedDish.rating ? `<span class="rating">⭐ ${selectedDish.rating}</span>` : ''}
+            <div class="zomato-status-section">
+                <h4>Zomato Status</h4>
+                <div id="zomatoRestaurantInfo" class="status-box">
+                    <p class="loading">Searching for this restaurant on Zomato...</p>
                 </div>
             </div>
-            <div class="similar-dishes">
-                <h4>Similar Options:</h4>
-                ${similarDishes.map(dish => `
-                    <div class="dish-card">
-                        ${dish.image ? `<img src="${dish.image}" alt="${dish.title}" onerror="this.style.display='none'">` : ''}
-                        <div class="dish-details">
-                            <h5>${dish.title}</h5>
-                            ${dish.description ? `<p class="description">${dish.description.substring(0, 100)}...</p>` : ''}
-                            <div class="dish-meta">
-                                ${dish.price ? `<span class="price">₹${dish.price}</span>` : ''}
-                                ${dish.rating ? `<span class="rating">⭐ ${dish.rating}</span>` : ''}
-                                <span class="similarity">${Math.round(dish.similarity * 100)}% match</span>
-                            </div>
-                            ${dish.link ? `<a href="${dish.link}" target="_blank" class="view-btn">View Dish →</a>` : ''}
-                        </div>
-                    </div>
-                `).join('')}
+
+            <div class="comparison-section" id="comparisonContent">
+                <div class="placeholder-msg">
+                    <p>👈 Click any dish to compare prices</p>
+                </div>
             </div>
         `;
-    }
 
-    // Handle dish selection
-    function handleDishClick(event) {
-        const dishElement = event.target.closest('[class*="RestaurantCard"], [class*="dishCard"], [class*="MenuItem"], [class*="DishCard"]');
-        if (!dishElement) return;
-
-        selectedDish = extractDishInfo(dishElement);
-        if (!selectedDish || !selectedDish.title) return;
-
-        createComparisonPanel();
-        comparisonPanel.style.display = 'block';
-
-        // Find and display similar dishes
-        const similarDishes = findSimilarDishes(selectedDish);
-        displaySimilarDishes(selectedDish, similarDishes);
-    }
-
-    // Initialize
-    function init() {
-        // Listen for clicks on dish cards
-        document.addEventListener('click', handleDishClick, true);
-
-        // Also listen for hover on dish cards to show preview
-        document.addEventListener('mouseover', (e) => {
-            const dishElement = e.target.closest('[class*="RestaurantCard"], [class*="dishCard"], [class*="MenuItem"]');
-            if (dishElement) {
-                dishElement.style.cursor = 'pointer';
+        // Inject Styles specifically for sidebar
+        const style = document.createElement('style');
+        style.textContent = `
+            #swiggy-zomato-sidebar {
+                position: fixed;
+                top: 80px;
+                right: 0;
+                width: 320px;
+                height: calc(100vh - 80px);
+                background: white;
+                box-shadow: -2px 0 10px rgba(0,0,0,0.1);
+                z-index: 10000;
+                display: flex;
+                flex-direction: column;
+                font-family: sans-serif;
+                transition: transform 0.3s;
+                border-left: 1px solid #eee;
             }
-        }, true);
+            #swiggy-zomato-sidebar.minimized {
+                transform: translateX(280px);
+            }
+            .sidebar-header {
+                padding: 15px;
+                background: linear-gradient(135deg, #fc8019 0%, #ff5e3a 100%); /* Swiggy Orange-ish */
+                color: white;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+            .sidebar-header h3 { margin: 0; font-size: 16px; }
+            #minimizeSidebar {
+                background: none; border: none; color: white; font-weight: bold; cursor: pointer; font-size: 18px;
+            }
+            
+            .zomato-status-section {
+                padding: 15px;
+                border-bottom: 5px solid #f0f0f0;
+                background: #fff;
+            }
+            .status-box {
+                background: #f8f8f8;
+                padding: 10px;
+                border-radius: 6px;
+                font-size: 13px;
+                margin-top: 5px;
+            }
+            
+            .comparison-section {
+                flex: 1;
+                padding: 15px;
+                overflow-y: auto;
+            }
+            
+            .cmp-card {
+                border: 1px solid #eee;
+                border-radius: 8px;
+                padding: 12px;
+                margin-bottom: 12px;
+            }
+            .cmp-card.swiggy { border-left: 4px solid #fc8019; }
+            .cmp-card.zomato { border-left: 4px solid #E23744; }
+            
+            .cmp-price { font-size: 18px; font-weight: bold; color: #333; }
+            .cmp-title { font-size: 14px; font-weight: 600; margin-bottom: 5px; }
+            .cmp-meta { font-size: 11px; color: #777; margin-top: 5px; }
+            
+            .placeholder-msg {
+                text-align: center; color: #999; margin-top: 50px;
+            }
+            
+            .z-btn {
+                display: block; width: 100%; text-align: center; background: #E23744; color: white; 
+                padding: 8px; border-radius: 4px; text-decoration: none; font-weight: bold; margin-top: 10px;
+                box-sizing: border-box;
+            }
+        `;
+        document.head.appendChild(style);
+        document.body.appendChild(sidebar);
+
+        // Sidebar behavior
+        document.getElementById('minimizeSidebar').addEventListener('click', () => {
+            sidebar.classList.toggle('minimized');
+            const btn = document.getElementById('minimizeSidebar');
+            btn.textContent = sidebar.classList.contains('minimized') ? '◀' : '_';
+        });
     }
 
-    // Wait for page to load
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
-    } else {
-        init();
+    // --- LOGIC ---
+
+    function detectRestaurant() {
+        // Try multiple strategies to find restaurant name
+        let name = '';
+        if (document.title.includes('Order from')) {
+            name = document.title.split('Order from')[1].split('|')[0].trim();
+        } else if (document.title.includes('|')) {
+            name = document.title.split('|')[0].trim();
+        }
+
+        // Sanity check: Don't detect "Swiggy" as the restaurant name
+        if (name && !name.toLowerCase().includes('swiggy') && name !== restaurantName) {
+            restaurantName = name;
+            console.log('Swiggy Ext: Detected Restaurant', restaurantName);
+            createSidebar();
+            findRestaurantOnZomato(restaurantName);
+        }
     }
+
+    // Phase 1: Search for the restaurant itself
+    function findRestaurantOnZomato(name) {
+        const infoBox = document.getElementById('zomatoRestaurantInfo');
+        infoBox.innerHTML = `<p class="loading">Searching Zomato for "${name}"...</p>`;
+
+        // Use background script to search
+        const query = `${name} restaurant`; // simplified query
+        const searchUrl = `https://www.zomato.com/search?q=${encodeURIComponent(query)}`;
+
+        chrome.runtime.sendMessage({ action: 'fetchZomato', url: searchUrl }, (response) => {
+            if (response && response.success) {
+                // Parse Search Results
+                // Zomato search results are usually in json/blob or specific DOM structure
+                // Heuristic: Look for the first "result-title" or similar link
+                // Since Zomato is SPA/SSR, we might find <a href="/city/restaurant-name...">
+
+                // Simple regex to find the first restaurant link in the HTML
+                // Pattern: href="https://www.zomato.com/[city]/[restaurant]..." class="..."
+                const linkMatch = response.html.match(/href="(https:\/\/www\.zomato\.com\/[a-zA-Z-]+\/[a-zA-Z0-9-]+)(\/order|"[^>]*class="[^"]*result-title)/i);
+
+                if (linkMatch && linkMatch[1]) {
+                    zomatoUrl = linkMatch[1];
+                    infoBox.innerHTML = `
+                        <div style="color: #2e7d32; font-weight: bold;">✓ Found on Zomato</div>
+                        <a href="${zomatoUrl}" target="_blank" class="z-btn">Open in Zomato</a>
+                    `;
+                } else {
+                    infoBox.innerHTML = `
+                        <div style="color: #e65100;">⚠️ Could not auto-detect link</div>
+                        <a href="${searchUrl}" target="_blank" class="z-btn">Search Manually</a>
+                    `;
+                }
+            } else {
+                infoBox.innerHTML = `<p class="error">Search failed. ${response.error || ''}</p>`;
+            }
+        });
+    }
+
+    // Phase 2: Compare specific dish
+    function compareDish(dishName, price) {
+        if (!restaurantName) return;
+
+        const content = document.getElementById('comparisonContent');
+        content.innerHTML = `
+            <div class="cmp-card swiggy">
+                <div class="cmp-title">${dishName}</div>
+                <div class="cmp-price">₹${price}</div>
+                <div class="cmp-meta">Swiggy Price</div>
+            </div>
+            <div class="cmp-card zomato">
+                <div class="cmp-title">Zomato</div>
+                <div id="zomatoPriceBox"><p class="loading">Checking price...</p></div>
+            </div>
+        `;
+
+        // Search Zomato for this dish
+        // We search: "Restaurant Name Dish Name"
+        const query = `${restaurantName} ${dishName}`;
+        const searchUrl = `https://www.zomato.com/search?q=${encodeURIComponent(query)}`;
+
+        chrome.runtime.sendMessage({ action: 'fetchZomato', url: searchUrl }, (response) => {
+            const zBox = document.getElementById('zomatoPriceBox');
+            if (response && response.success) {
+                // Try to scrape price from search result snippet
+                // Look for "₹" near the dish name
+                // This is extremely heuristic-based
+                const cleanHtml = response.html.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gm, ""); // remove scripts to reduce noise
+                const doc = new DOMParser().parseFromString(cleanHtml, 'text/html');
+
+                // Zomato search results often have <h4 class="...name...">Dish Name</h4> ... <div class="...cost...">₹199</div>
+                // We will look for elements containing the dish name loosely
+
+                // Generic Price scraping from the entire text blob of the first result card?
+                // Let's try to finding the first "₹" followed by digits
+
+                // Better: Pass link to search results
+                zBox.innerHTML = `
+                    <div style="font-size: 13px; color: #555;">
+                        Unable to extract exact price automatically (Security restricted).
+                    </div>
+                    <a href="${searchUrl}" target="_blank" class="z-btn" style="background: #333; margin-top:8px;">Check Price on Zomato</a>
+                 `;
+            } else {
+                zBox.innerHTML = 'Error checking price.';
+            }
+        });
+    }
+
+    // --- INIT & EVENTS ---
+
+    function handleGlobalClick(e) {
+        // Detect click on dishes
+        const dishCard = e.target.closest('[data-swiggy-hooked], [data-testid="normal-dish-item"], [data-testid="recommended-dish-item"]');
+
+        if (dishCard) {
+            // Extract info
+            // (Re-using parts of extraction logic from previous version, simplified)
+            let title = '';
+            let price = '';
+
+            // Text Search
+            const text = dishCard.innerText;
+            const priceMatch = text.match(/₹\s?([\d,]+)/);
+            if (priceMatch) {
+                price = priceMatch[1];
+                // Assume title is the first distinct line or header
+                const lines = text.split('\n').filter(l => l.length > 3 && !l.includes('₹') && !l.toLowerCase().includes('add'));
+                if (lines.length > 0) title = lines[0];
+            }
+
+            if (title && price) {
+                if (sidebar) {
+                    sidebar.classList.remove('minimized');
+                    compareDish(title, price);
+                }
+            }
+        }
+    }
+
+    // Init
+    setInterval(detectRestaurant, 2000); // Check periodically for nav changes
+    document.addEventListener('click', handleGlobalClick);
+
 })();
-

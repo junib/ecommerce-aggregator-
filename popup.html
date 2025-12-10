@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -15,7 +16,7 @@
             width: 350px;
             padding: 20px;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #7b7d86 0%, #764ba2 100%);
             color: white;
         }
 
@@ -102,8 +103,46 @@
         .status.active {
             background: rgba(76, 175, 80, 0.3);
         }
+
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            width: 100%;
+            margin-top: 8px;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        .settings-input {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            background: rgba(0, 0, 0, 0.2);
+            color: white;
+            font-size: 12px;
+        }
+
+        .settings-input::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        #settingsToggle {
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            margin-top: 10px;
+        }
     </style>
 </head>
+
 <body>
     <div class="header">
         <h1>💰🍽️ Price & Food Compare</h1>
@@ -126,13 +165,38 @@
         </div>
     </div>
 
+    <div class="features" id="alertsSection" style="display: none;">
+        <h2>🔔 Your Price Alerts</h2>
+        <div id="alertsList"></div>
+    </div>
+
     <div class="instructions">
         <h3>How to Use</h3>
         <ol>
-            <li><strong>E-commerce:</strong> Visit Amazon.in or Flipkart product page and click "Compare Prices" button</li>
+            <li><strong>E-commerce:</strong> Visit Amazon.in or Flipkart product page and click "Compare Prices" button
+            </li>
             <li><strong>Food:</strong> Click on any dish card on Swiggy to see similar options</li>
             <li>The extension will show comparison results in a panel</li>
         </ol>
+    </div>
+
+    <button id="settingsToggle">⚙️ Configure Mobile Alerts (V1)</button>
+
+    <div class="features" id="settingsSection" style="display: none; margin-top: 16px;">
+        <h2>📱 Mobile Alerts Setup</h2>
+        <div style="margin-bottom: 10px;">
+            <label style="font-size: 12px; display: block; margin-bottom: 4px;">Firebase Project ID</label>
+            <input type="text" id="projectId" class="settings-input" placeholder="e.g. my-ecommerce-project">
+        </div>
+        <div style="margin-bottom: 10px;">
+            <label style="font-size: 12px; display: block; margin-bottom: 4px;">My Device Token</label>
+            <input type="text" id="deviceToken" class="settings-input" placeholder="Enter Device Token">
+        </div>
+        <div style="display: flex; gap: 8px;">
+            <button id="saveSettings">Save Settings</button>
+            <button id="testAlert" style="background: #2196F3;">Test Alert (Auth)</button>
+        </div>
+        <p id="settingsStatus" style="font-size: 12px; margin-top: 8px; color: #81c784; display: none;"></p>
     </div>
 
     <div class="status active" id="status">
@@ -145,5 +209,5 @@
 
     <script src="popup.js"></script>
 </body>
-</html>
 
+</html>

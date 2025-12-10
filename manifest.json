@@ -3,31 +3,59 @@
   "name": "Price & Food Compare",
   "version": "1.0.0",
   "description": "Compare prices on Amazon.in & Flipkart, and find similar dishes on Swiggy",
+  "oauth2": {
+    "client_id": "YOUR_CLIENT_ID_HERE",
+    "scopes": [
+      "https://www.googleapis.com/auth/firebase.messaging"
+    ]
+  },
   "permissions": [
+    "identity",
     "storage",
     "activeTab",
-    "tabs"
+    "tabs",
+    "alarms",
+    "notifications"
   ],
   "host_permissions": [
     "https://www.amazon.in/*",
     "https://www.flipkart.com/*",
-    "https://www.swiggy.com/*"
+    "https://www.swiggy.com/*",
+    "https://www.zomato.com/*"
   ],
   "content_scripts": [
     {
-      "matches": ["https://www.amazon.in/*"],
-      "js": ["content-scripts/amazon.js"],
-      "css": ["styles/content.css"]
+      "matches": [
+        "https://www.amazon.in/*"
+      ],
+      "js": [
+        "content-scripts/amazon.js"
+      ],
+      "css": [
+        "styles/content.css"
+      ]
     },
     {
-      "matches": ["https://www.flipkart.com/*"],
-      "js": ["content-scripts/flipkart.js"],
-      "css": ["styles/content.css"]
+      "matches": [
+        "https://www.flipkart.com/*"
+      ],
+      "js": [
+        "content-scripts/flipkart.js"
+      ],
+      "css": [
+        "styles/content.css"
+      ]
     },
     {
-      "matches": ["https://www.swiggy.com/*"],
-      "js": ["content-scripts/swiggy.js"],
-      "css": ["styles/content.css"]
+      "matches": [
+        "https://www.swiggy.com/*"
+      ],
+      "js": [
+        "content-scripts/swiggy.js"
+      ],
+      "css": [
+        "styles/content.css"
+      ]
     }
   ],
   "background": {
@@ -37,4 +65,3 @@
     "default_popup": "popup.html"
   }
 }
-

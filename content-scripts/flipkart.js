@@ -1,5 +1,5 @@
 // Flipkart Content Script - Compare with Amazon.in
-(function() {
+(function () {
     'use strict';
 
     let comparisonPanel = null;
@@ -9,25 +9,25 @@
     function extractProductInfo() {
         try {
             // Product title
-            const titleElement = document.querySelector('span.B_NuCI, h1[class*="yhB1nd"]');
+            const titleElement = document.querySelector('.KzDlHZ, .wjcEIp, span.B_NuCI, h1[class*="yhB1nd"]');
             const title = titleElement?.textContent?.trim() || '';
 
             // Price
-            const priceElement = document.querySelector('div._30jeq3, ._16Jk6d, [class*="price"]');
+            const priceElement = document.querySelector('div.Nx9bqj, div.CxhGGd, div._30jeq3, ._16Jk6d, [class*="price"]');
             const priceText = priceElement?.textContent?.trim() || '';
             const price = parsePrice(priceText);
 
             // Image
-            const imageElement = document.querySelector('img._396cs4, img[class*="product-image"]');
+            const imageElement = document.querySelector('img.DByuf4, img._396cs4, img[class*="product-image"]');
             const image = imageElement?.src || imageElement?.getAttribute('data-src') || '';
 
             // Rating
-            const ratingElement = document.querySelector('div._3LWZlK, [class*="rating"]');
+            const ratingElement = document.querySelector('div.XQDdHH, div._3LWZlK, [class*="rating"]');
             const ratingText = ratingElement?.textContent?.trim() || '';
             const rating = parseRating(ratingText);
 
             // Reviews count
-            const reviewsElement = document.querySelector('span._2_R_DZ, [class*="reviews"]');
+            const reviewsElement = document.querySelector('span.Wphh3N, span._2_R_DZ, [class*="reviews"]');
             const reviewsText = reviewsElement?.textContent?.trim() || '';
             const reviewsCount = parseReviewsCount(reviewsText);
 
@@ -122,12 +122,12 @@
     async function searchAmazon(product) {
         const amazonDiv = document.getElementById('amazonResults');
         amazonDiv.innerHTML = '<p class="loading">🔍 Searching Amazon.in...</p>';
-        
+
         try {
             // Extract search keywords from product title
             const searchQuery = extractSearchKeywords(product.title, product.brand);
             const amazonUrl = `https://www.amazon.in/s?k=${encodeURIComponent(searchQuery)}`;
-            
+
             // Use background script to fetch (avoids CORS issues)
             chrome.runtime.sendMessage({
                 action: 'fetchAmazon',
@@ -136,10 +136,10 @@
                 if (response && response.success && response.html) {
                     const parser = new DOMParser();
                     const doc = parser.parseFromString(response.html, 'text/html');
-                    
+
                     // Extract top product from Amazon search results
                     const topProduct = extractTopAmazonProduct(doc, amazonUrl);
-                    
+
                     if (topProduct) {
                         displayAmazonProduct(topProduct, amazonDiv);
                     } else {
@@ -183,46 +183,38 @@
                 '[data-asin]',
                 '.s-card-container'
             ];
-            
+
             let productElement = null;
             for (const selector of productSelectors) {
                 const elements = doc.querySelectorAll(selector);
                 if (elements.length > 0) {
-                    // Skip sponsored ads if possible
-                    for (const el of elements) {
-                        if (!el.textContent.includes('Sponsored') && el.querySelector('h2 a')) {
-                            productElement = el;
-                            break;
-                        }
-                    }
-                    if (!productElement && elements[0]) {
-                        productElement = elements[0];
-                    }
+                    // STRICTLY pick the first one, even if sponsored, as requested "first result"
+                    productElement = elements[0];
                     break;
                 }
             }
-            
+
             if (!productElement) return null;
-            
+
             // Extract product details
             const titleElement = productElement.querySelector('h2 a span, h2 a, [data-cy="title-recipe-title"] span');
             const title = titleElement?.textContent?.trim() || '';
-            
-            const priceElement = productElement.querySelector('.a-price-whole, .a-price .a-offscreen, .a-price-range .a-offscreen');
+
+            const priceElement = productElement.querySelector('.a-price .a-offscreen, .a-price-whole, .a-price-range .a-offscreen, span.a-price span.a-offscreen');
             const priceText = priceElement?.textContent?.trim() || '';
             const price = parsePrice(priceText);
-            
+
             const imageElement = productElement.querySelector('img, img.s-image');
             const image = imageElement?.src || imageElement?.getAttribute('data-src') || '';
-            
+
             const ratingElement = productElement.querySelector('.a-icon-alt, [data-cy="review-star-rating"]');
             const ratingText = ratingElement?.textContent?.trim() || '';
             const rating = parseRating(ratingText);
-            
+
             const reviewsElement = productElement.querySelector('.a-size-base, [data-cy="review-count"]');
             const reviewsText = reviewsElement?.textContent?.trim() || '';
             const reviewsCount = parseReviewsCount(reviewsText);
-            
+
             // Get product link
             const linkElement = productElement.querySelector('h2 a, [data-cy="title-recipe-title"] a');
             let productUrl = '';
@@ -230,9 +222,9 @@
                 const href = linkElement.getAttribute('href');
                 productUrl = href.startsWith('http') ? href : `https://www.amazon.in${href}`;
             }
-            
+
             if (!title) return null;
-            
+
             return {
                 title: title.substring(0, 150),
                 price,
@@ -270,11 +262,11 @@
         // Remove common words and keep important keywords
         const stopWords = ['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by'];
         let keywords = title.toLowerCase().split(/\s+/);
-        
+
         if (brand) {
             keywords = [brand.toLowerCase(), ...keywords];
         }
-        
+
         return keywords
             .filter(word => word.length > 2 && !stopWords.includes(word))
             .slice(0, 5)
@@ -284,7 +276,7 @@
     // Initialize comparison
     function initComparison() {
         productInfo = extractProductInfo();
-        
+
         if (!productInfo || !productInfo.title) {
             console.log('Could not extract product information');
             return;
@@ -292,7 +284,7 @@
 
         createComparisonPanel();
         comparisonPanel.style.display = 'block';
-        
+
         displayFlipkartProduct(productInfo);
         searchAmazon(productInfo);
     }
@@ -307,7 +299,7 @@
     // Auto-detect product page and show comparison button
     function addCompareButton() {
         // Check if we're on a product page
-        if (!document.querySelector('span.B_NuCI, h1[class*="yhB1nd"]')) return;
+        if (!document.querySelector('.KzDlHZ, .wjcEIp, span.B_NuCI, h1[class*="yhB1nd"]')) return;
 
         // Check if button already exists
         if (document.getElementById('priceCompareBtn')) return;
@@ -315,18 +307,41 @@
         const button = document.createElement('button');
         button.id = 'priceCompareBtn';
         button.className = 'price-compare-btn';
+        button.type = 'button'; // Prevent form submission
         button.innerHTML = '💰 Compare Prices';
-        button.addEventListener('click', initComparison);
+        button.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            initComparison();
+        });
 
-        // Try to insert near buy button or price
+        // Try to insert near price first (User Request)
+        const priceSelectors = [
+            'div._30jeq3',
+            '._16Jk6d',
+            'div[class*="price"]'
+        ];
+
+        for (const selector of priceSelectors) {
+            const elements = document.querySelectorAll(selector);
+            for (const el of elements) {
+                // Check if valid price element and visible
+                if (el.offsetParent !== null && el.textContent.includes('₹')) {
+                    el.parentElement.insertBefore(button, el.nextSibling);
+                    return;
+                }
+            }
+        }
+
+        // Try to insert near buy button as fallback
         const buyBox = document.querySelector('._1YokD2, [class*="buyBox"]');
         if (buyBox) {
             buyBox.insertBefore(button, buyBox.firstChild);
         } else {
-            // Fallback: add near price
-            const priceBox = document.querySelector('div._30jeq3, ._16Jk6d');
-            if (priceBox) {
-                priceBox.parentElement.insertBefore(button, priceBox.nextSibling);
+            // Fallback: add to body if nothing else found (rare)
+            const title = document.querySelector('span.B_NuCI, h1[class*="yhB1nd"]');
+            if (title) {
+                title.parentElement.insertBefore(button, title.nextSibling);
             }
         }
     }
@@ -335,7 +350,14 @@
     function init() {
         // Wait a bit for page to fully load
         setTimeout(() => {
+            // Add button
             addCompareButton();
+
+            // Auto-popup: Check if it's a product page by seeing if we can extract info
+            const info = extractProductInfo();
+            if (info && info.title) {
+                initComparison();
+            }
         }, 1000);
     }
 
@@ -352,6 +374,11 @@
         const url = location.href;
         if (url !== lastUrl) {
             lastUrl = url;
+            // Clear existing panel if any before re-initializing
+            if (comparisonPanel) {
+                comparisonPanel.remove();
+                comparisonPanel = null;
+            }
             setTimeout(init, 1000);
         }
     }).observe(document, { subtree: true, childList: true });
